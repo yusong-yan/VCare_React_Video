@@ -2,18 +2,23 @@ import { useRef, useState } from "react";
 import React from 'react';
 import './App.css';
 import * as Logger from "./logger.js";
-export class WebSocketSignaling extends EventTarget {
 
+//this is the websocket server url
+const wsServerURL = "169.231.21.130";
+
+//WebSocketSignaling
+export class WebSocketSignaling extends EventTarget {
   constructor() {
     super();
     this.sleep = msec => new Promise(resolve => setTimeout(resolve, msec));
 
     let websocketUrl;
     if (window.location.protocol === "https:") {
-      websocketUrl = "wss://" + "169.231.21.56";
+      websocketUrl = "wss://" + wsServerURL;
     } else {
-      websocketUrl = "ws://169.231.21.56";
+      websocketUrl = "ws://" + wsServerURL;
     }
+    console.log(websocketUrl)
 
     this.websocket = new WebSocket(websocketUrl);
     this.connectionId = null;
@@ -111,6 +116,7 @@ export class WebSocketSignaling extends EventTarget {
     this.websocket.send(sendJson);
   }
 }
+
 //peer
 class Peer extends EventTarget {
   constructor(connectionId, polite, resendIntervalMsec = 5000) {
@@ -280,12 +286,14 @@ class Peer extends EventTarget {
     }
   }
 }
+
 //sendvideo
 class SendVideo {
   constructor() {
     this.pc = null;
     this.localVideo = null;
     this.remoteVideo = null;
+    this.localStream = null;
     this.ondisconnect = function () { };
     console.log('called');
   }
@@ -394,6 +402,7 @@ class SendVideo {
         console.log("recieve video");
         const direction = trackEvent.transceiver.direction;
         if (direction === "sendrecv" || direction === "recvonly") {
+          console.log("playing video");
           _this.remoteVideo.current.srcObject.addTrack(trackEvent.track);
         }
       }
@@ -402,6 +411,7 @@ class SendVideo {
         console.log("recieve audio");
         const direction = trackEvent.transceiver.direction;
         if (direction === "sendrecv" || direction === "recvonly") {
+          console.log("playing audio");
           _this.remoteVideo.current.srcObject.addTrack(trackEvent.track);
         }
       }
@@ -423,8 +433,8 @@ class SendVideo {
 
   addTracks(connectionId) {
     const _this = this;
-    const vtrack = _this.localVideo.current.srcObject.getTracks().find(x => x.kind === 'video');
-    const atrack = _this.localVideo.current.srcObject.getTracks().find(x => x.kind === 'audio');
+    const vtrack = _this.localStream.getTracks().find(x => x.kind === 'video');
+    const atrack = _this.localStream.getTracks().find(x => x.kind === 'audio');
     _this.pc.addTrack(connectionId, vtrack);
     _this.pc.addTrack(connectionId, atrack);
     console.log("here")
@@ -452,11 +462,9 @@ class SendVideo {
   }
 }
 
+//setting up
 const sendVideo = new SendVideo();
 sendVideo.ondisconnect = () => sendVideo.hangUp();
-
-
-
 window.addEventListener('beforeunload', async () => {
   await sendVideo.stop();
 }, true);
@@ -464,6 +472,7 @@ window.addEventListener('beforeunload', async () => {
 function App() {
   const localVideo = useRef();
   const remoteVideo = useRef();
+
   var [setUpButtonDisable, setSetUpButtonDisable] = useState(false);
   var [hangUpButtonDisable, setHangUpButtonDisable] = useState(false);
   var [joinCode, setJoinCode] = useState(getRandom());
@@ -471,22 +480,12 @@ function App() {
   let useWebSocket;
   let connectionId;
 
-
   setupConfig();
 
   //main
   async function setupConfig() {
-    //const res = await getServerConfig();
     useWebSocket = true;
-    // showWarningIfNeeded(res.startupMode);
   }
-  // function showWarningIfNeeded(startupMode) {
-  //   const warningDiv = document.getElementById("warning");
-  //   if (startupMode === "public") {
-  //     warningDiv.innerHTML = "<h4>Warning</h4> This sample is not working on Public Mode.";
-  //     warningDiv.hidden = false;
-  //   }
-  // }
 
   async function setUp() {
     setSetUpButtonDisable(true);
@@ -510,52 +509,33 @@ function App() {
     return (Array(length).join('0') + number).slice(-length);
   }
 
-  // async function setUpVideoSelect() {
-  //   const deviceInfos = await navigator.mediaDevices.enumerateDevices();
-
-  //   for (let i = 0; i !== deviceInfos.length; ++i) {
-  //     const deviceInfo = deviceInfos[i];
-  //     if (deviceInfo.kind === 'videoinput') {
-  //       const option = document.createElement('option');
-  //       option.value = deviceInfo.deviceId;  
-  //       option.text = deviceInfo.label || `camera ${videoSelect.length + 1}`;
-  //       videoSelect.appendChild(option);
-  //     }
-  //   }
-  // }
   return (
   <div id="container">
-        <h1>Bidirectional Sample</h1>
-        <div id="warning" hidden={true} />
-        <div id="select">
-          <label htmlFor="videoSource">Video source: </label><select id="videoSource" />
-        </div>
         <div id="buttons">
           <button disabled={setUpButtonDisable} type="button" onClick={setUp}>Set Up</button>
           <button disabled={hangUpButtonDisable} type="button" onClick={hangUp}>Hang Up</button>
         </div>
+
         <div id="preview">
-          <div id="local">
+          
+          {/* uncomment this if you want to have local video */}
+
+          {/* <div id="local">
             <h2>Local</h2>
             <video ref = {localVideo} id="local_video" playsInline autoPlay muted={true} />
-          </div>
+          </div> */}
+
           <div id="remote">
             <h2>Remote</h2>
             <video ref = {remoteVideo} id="remote_video" playsInline autoPlay />
           </div>
+
           <p>ConnectionID:<br />
-          <input
-                    value={joinCode}
-                    onChange={(e) => setJoinCode(e.target.value) }
-                    placeholder="Join with code"
-                />
+          <input value={joinCode}
+                 onChange={(e) => setJoinCode(e.target.value) }
+                 placeholder="Join with code"/>
           </p>
-          <p>For more information about <code>Bidirectional</code> sample, see <a href="https://docs.unity3d.com/Packages/com.unity.renderstreaming@latest/sample-bidirectional.html">Bidirectional
-              sample</a> document page.</p>
         </div>
-        <section>
-          <a href="https://github.com/Unity-Technologies/UnityRenderStreaming/tree/develop/WebApp/public/bidirectional" title="View source for this page on GitHub" id="viewSource">View source on GitHub</a>
-        </section>
     </div>
   );
 }
@@ -563,11 +543,6 @@ function App() {
 
 
 //config
-async function getServerConfig() {
-  const protocolEndPoint = window.location.origin + '/config';
-  const createResponse = await fetch(protocolEndPoint);
-  return await createResponse.json();
-}
 function getRTCConfiguration() {
   let config = {};
   config.sdpSemantics = 'unified-plan';
