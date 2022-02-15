@@ -2,9 +2,56 @@ import { useRef, useState } from "react";
 import React from 'react';
 import './App.css';
 import * as Logger from "./logger.js";
+//firebase
+import { initializeApp } from "firebase/app";
+import { getDatabase, ref, set, child, get} from "firebase/database"
+
+//firebase
+function readWSFromFireBase(){
+  const app = initializeApp({
+    apiKey: "AIzaSyAkN1ZP5w5DyNZ7FrVbmpNBP9gF7m9zBCQ",
+    authDomain: "well-health-capstone.firebaseapp.com",
+    projectId: "well-health-capstone",
+    storageBucket: "well-health-capstone.appspot.com",
+    messagingSenderId: "806268228085",
+    appId: "1:806268228085:web:01b265f54b5ea3a29850bc",
+    measurementId: "G-SWY178BJNW",
+  });
+  const dbRef = ref(getDatabase());
+  get(child(dbRef, '/messages/-999/Metadata/WebSocket')).then((snapshot) => {
+    if (snapshot.exists()) {
+      console.log("read from database: ", snapshot.val());
+      wsServerURL = snapshot.val();
+    } else {
+      console.log("No data available");
+    }
+  }).catch((error) => {
+    console.error(error);
+  });
+}
 
 //this is the websocket server url
-const wsServerURL = "169.231.21.130";
+var wsServerURL = "169.231.23.177";
+//firebase
+readWSFromFireBase()
+
+//firebase
+function sendConnectionIdToFireBase(connectionId){
+  const app = initializeApp({
+          apiKey: "AIzaSyAkN1ZP5w5DyNZ7FrVbmpNBP9gF7m9zBCQ",
+          authDomain: "well-health-capstone.firebaseapp.com",
+          projectId: "well-health-capstone",
+          storageBucket: "well-health-capstone.appspot.com",
+          messagingSenderId: "806268228085",
+          appId: "1:806268228085:web:01b265f54b5ea3a29850bc",
+          measurementId: "G-SWY178BJNW",
+  });
+  const database = getDatabase();
+  set(ref(database, 'messages/-999/Metadata/VideoCode'), connectionId);
+}
+
+
+
 
 //WebSocketSignaling
 export class WebSocketSignaling extends EventTarget {
@@ -12,13 +59,13 @@ export class WebSocketSignaling extends EventTarget {
     super();
     this.sleep = msec => new Promise(resolve => setTimeout(resolve, msec));
 
-    let websocketUrl;
-    if (window.location.protocol === "https:") {
-      websocketUrl = "wss://" + wsServerURL;
-    } else {
-      websocketUrl = "ws://" + wsServerURL;
-    }
-    console.log(websocketUrl)
+    let websocketUrl = wsServerURL;
+    // if (window.location.protocol === "https:") {
+    //   websocketUrl = "wss://" + wsServerURL;
+    // } else {
+    //   websocketUrl = "ws://" + wsServerURL;
+    // }
+    console.log(websocketUrl);
 
     this.websocket = new WebSocket(websocketUrl);
     this.connectionId = null;
@@ -295,7 +342,6 @@ class SendVideo {
     this.remoteVideo = null;
     this.localStream = null;
     this.ondisconnect = function () { };
-    console.log('called');
   }
 
   async startVideo(localVideo) {
@@ -364,7 +410,9 @@ class SendVideo {
         await _this.pc.onGotCandidate(candidate.connectionId, iceCandidate);
       }
     });
-
+    //firebase
+    sendConnectionIdToFireBase(connectionId);
+    console.log("connection id sent")
     await this.signaling.start();
     await this.signaling.createConnection(connectionId);
   }
@@ -437,7 +485,6 @@ class SendVideo {
     const atrack = _this.localStream.getTracks().find(x => x.kind === 'audio');
     _this.pc.addTrack(connectionId, vtrack);
     _this.pc.addTrack(connectionId, atrack);
-    console.log("here")
   }
 
   async hangUp(connectionId) {
@@ -483,6 +530,7 @@ function App() {
   setupConfig();
 
   //main
+
   async function setupConfig() {
     useWebSocket = true;
   }
